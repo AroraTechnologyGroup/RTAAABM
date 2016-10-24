@@ -25,10 +25,17 @@ def process_table(table, gdb, dset):
     point = arcpy.ListFeatureClasses("Point*")[0]
 
     type_dict = {"polygon": polygon, "polyline": polyline, "point": point}
+    number_removed = 0
     for sh_type in type_dict.keys():
         cursor = da.InsertCursor(type_dict[sh_type], ["SHAPE@"])
-        if len(ws.rows):
-            for row in ws.rows:
+        column = ""
+        for row in ws.iter_rows(min_row=1, max_row=1):
+            for x in row:
+                if x.value == "WKB_GEOMETRY":
+                    column = row.index(x) + 1
+                    break
+        if column:
+            for row in ws.iter_rows(min_row=2, min_col=column, max_col=column):
                 entry = ""
                 if len(row):
                     entry = row[0]
@@ -45,15 +52,23 @@ def process_table(table, gdb, dset):
                                 cursor.insertRow([in_geo])
                             except:
                                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                                print "{} :: {}".format(traceback.print_tb(exc_traceback, limit=1, file=sys.stdout),
+                                print("{} :: {}".format(traceback.print_tb(exc_traceback, limit=1, file=sys.stdout),
                                                         traceback.print_exception(exc_type, exc_value, exc_traceback,
-                                                                                  limit=2, file=sys.stdout))
+                                                                                  limit=2, file=sys.stdout)))
+                        else:
+                            print("{} != {}".format(geo_type, sh_type))
                     except:
                         exc_type, exc_value, exc_traceback = sys.exc_info()
-                        print "{} :: {}".format(traceback.print_tb(exc_traceback, limit=1, file=sys.stdout),
+                        print("{} :: {}".format(traceback.print_tb(exc_traceback, limit=1, file=sys.stdout),
                                                 traceback.print_exception(exc_type, exc_value, exc_traceback,
-                                                                          limit=2, file=sys.stdout))
+                                                                          limit=2, file=sys.stdout)))
+        else:
+            arcpy.Delete_management(sh_type)
+            number_removed += 1
+
         del cursor
+
+    return number_removed
 
 
 def process_folder(path, gdb):
@@ -73,19 +88,21 @@ def process_folder(path, gdb):
                                                     fc_name, shape.upper())
                 i += 1
             xl_path = "{}\\{}".format(path, fl)
-            process_table(xl_path, gdb, form_name)
-
+            num_empty = process_table(xl_path, gdb, form_name)
+            env.workspace = gdb
+            if num_empty == 3:
+                arcpy.Delete_management(form_name)
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            print "{} :: {}".format(traceback.print_tb(exc_traceback, limit=1, file=sys.stdout),
+            print("{} :: {}".format(traceback.print_tb(exc_traceback, limit=1, file=sys.stdout),
                                     traceback.print_exception(exc_type, exc_value, exc_traceback,
-                                                              limit=2, file=sys.stdout)
+                                                              limit=2, file=sys.stdout))
                                     )
 folder_path = r"C:\RTAA_ABM"
 os.chdir(folder_path)
 folders = os.listdir(folder_path)
 folders = [f for f in folders if os.path.isdir(f)]
-print folders
+print(folders)
 
 for x in folders:
     in_path = "{}\\{}".format(folder_path, x)
@@ -93,7 +110,7 @@ for x in folders:
     gdb_path = "{}\\{}.gdb".format(env.scratchFolder, gdb_name)
     if not arcpy.Exists(gdb_path):
         arcpy.CreateFileGDB_management(env.scratchFolder, gdb_name)
-
+    print(env.scratchFolder)
     process_folder(in_path, gdb_path)
 
 
