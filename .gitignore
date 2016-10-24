@@ -1,6 +1,3 @@
-.idea/misc.xml
+.idea/
 *.xml
-*.iml
-*.xml
-.idea/vcs.xml
 env/
